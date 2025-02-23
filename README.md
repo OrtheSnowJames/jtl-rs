@@ -17,23 +17,41 @@ use jtl;
 Third, do something with it.
 
 ```rust
-    fn test_parse() {
+fn test_parse() {
     const SAMPLE_JTL: &str = r#"DOCTYPE=JTL
 >>>ENV;
 >>>foo=bar;
 >>>BEGIN;
->element_id key="value">element_id>$env:foo;
+>key="value">element_id>$env:foo;
 >>>END;"#;
-        let parsed = parse(SAMPLE_JTL).expect("Parsing should succeed");
-        assert!(parsed.contains_key("element_id"));
+    let parsed = parse(SAMPLE_JTL).expect("Parsing should succeed");
+    assert!(!parsed.is_empty());
 
-        // Check that the parsed element contains the expected fields.
-        let element = parsed.get("element_id").unwrap();
-        let obj = element.as_object().expect("Element should be an object");
-        assert_eq!(obj.get("key").unwrap(), "value");
-        assert_eq!(obj.get("content").unwrap(), "bar");
-    }
+    // Check that the parsed element contains the expected fields.
+    let element = parsed.get(0).unwrap();
+    let obj = element.as_object().expect("Element should be an object");
+    assert_eq!(obj.get("key").unwrap(), "value");
+    assert_eq!(obj.get("KEY").unwrap(), "element_id");
+    assert_eq!(obj.get("Content").unwrap(), "bar");
+    assert_eq!(obj.get("Contents").unwrap(), "bar");
+}
 ```
 
-Latest Commit: Init the project.
-Tests Passed: As of 2/22/2025
+Latest Commit: Refactored to use vec with all of them instead of using key value inside a hashmap ex:
+from:
+HashMap String, Value {
+    "foo": {
+        "Content (or Contents)": "20"
+    }
+}
+
+to:
+Vec Value [
+    {
+        "key": "foo",
+        "Content (or Contents)": "20"
+    }
+]
+.
+
+Tests Passed: As of 2/22/2025, 2nd commit

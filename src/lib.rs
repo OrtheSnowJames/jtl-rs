@@ -3,9 +3,9 @@ use serde_json::{self, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
-/// Parses JTL content into a structured map.
-pub fn parse(text: &str) -> Result<HashMap<String, Value>, Box<dyn Error>> {
-    let mut result: HashMap<String, Value> = HashMap::new();
+/// Parses JTL content into a structured vector.
+pub fn parse(text: &str) -> Result<Vec<Value>, Box<dyn Error>> {
+    let mut result: Vec<Value> = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
 
     if lines.is_empty() || !lines[0].contains("DOCTYPE=JTL") {
@@ -59,8 +59,8 @@ pub fn parse(text: &str) -> Result<HashMap<String, Value>, Box<dyn Error>> {
                 if decl.len() < 5 {
                     return Err("invalid element format: too short".into());
                 }
-                let (element_map, id) = parse_element(decl, &current_env)?;
-                result.insert(id, Value::Object(element_map));
+                let element_map = parse_element(decl, &current_env)?;
+                result.push(Value::Object(element_map));
             }
         }
     }
@@ -68,17 +68,13 @@ pub fn parse(text: &str) -> Result<HashMap<String, Value>, Box<dyn Error>> {
     Ok(result)
 }
 
-/// Converts a map to a JSON string.
-pub fn stringify(data: &HashMap<String, Value>) -> Result<String, serde_json::Error> {
+/// Converts a vector to a JSON string.
+pub fn stringify(data: &Vec<Value>) -> Result<String, serde_json::Error> {
     serde_json::to_string(data)
 }
 
 /// Parses a single JTL element.
-fn parse_element(
-    line: &str,
-    env: &HashMap<String, String>,
-) -> Result<(serde_json::Map<String, Value>, String), Box<dyn Error>> {
-    // Remove leading '>'
+fn parse_element(line: &str, env: &HashMap<String, String>) -> Result<serde_json::Map<String, Value>, Box<dyn Error>> {
     let line = line
         .strip_prefix('>')
         .ok_or("invalid element format: missing '>' prefix")?;
@@ -125,9 +121,11 @@ fn parse_element(
             content = val.clone();
         }
     }
-    element_map.insert("content".to_string(), Value::String(content));
+    element_map.insert("KEY".to_string(), Value::String(id));
+    element_map.insert("Content".to_string(), Value::String(content.clone()));
+    element_map.insert("Contents".to_string(), Value::String(content));
 
-    Ok((element_map, id))
+    Ok(element_map)
 }
 
 /// Extracts environment variables from JTL text.
@@ -192,13 +190,14 @@ mod tests {
     #[test]
     fn test_parse() {
         let parsed = parse(SAMPLE_JTL).expect("Parsing should succeed");
-        assert!(parsed.contains_key("element_id"));
+        assert!(!parsed.is_empty());
 
         // Check that the parsed element contains the expected fields.
-        let element = parsed.get("element_id").unwrap();
+        let element = parsed.get(0).unwrap();
         let obj = element.as_object().expect("Element should be an object");
         assert_eq!(obj.get("key").unwrap(), "value");
-        assert_eq!(obj.get("content").unwrap(), "bar");
+        assert_eq!(obj.get("Content").unwrap(), "bar");
+        assert_eq!(obj.get("Contents").unwrap(), "bar");
     }
 
     #[test]
@@ -210,17 +209,16 @@ mod tests {
 
     #[test]
     fn test_stringify() {
-        // Create a sample map.
-        let mut map: HashMap<String, Value> = HashMap::new();
+        // Create a sample vector.
         let mut element = serde_json::Map::new();
         element.insert("key".to_string(), Value::String("value".to_string()));
         element.insert("content".to_string(), Value::String("bar".to_string()));
-        map.insert("element_id".to_string(), Value::Object(element));
+        let vec = vec![Value::Object(element)];
 
-        let json_str = stringify(&map).expect("Stringify should succeed");
+        let json_str = stringify(&vec).expect("Stringify should succeed");
         // Parse the JSON string back and check the field.
         let parsed_json: Value = serde_json::from_str(&json_str).expect("JSON should be valid");
-        assert!(parsed_json.get("element_id").is_some());
+        assert!(parsed_json.get(0).is_some());
     }
 
     #[test]
